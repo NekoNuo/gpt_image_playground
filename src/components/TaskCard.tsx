@@ -337,6 +337,11 @@ export default function TaskCard({
               <ParamValue task={task} paramKey="size" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" />
               <ParamValue task={task} paramKey="output_format" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" />
               <ParamValue task={task} paramKey="n" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" actualParams={aggregateActualParams} />
+              {task.maskImageId && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 flex-shrink-0">
+                  mask
+                </span>
+              )}
               </div>
             {/* 操作按钮 */}
             <div

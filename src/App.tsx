@@ -12,6 +12,7 @@ import Lightbox from './components/Lightbox'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import Toast from './components/Toast'
+import MaskEditorModal from './components/MaskEditorModal'
 import ImageContextMenu from './components/ImageContextMenu'
 
 export default function App() {
@@ -84,6 +85,7 @@ export default function App() {
       <SettingsModal />
       <ConfirmDialog />
       <Toast />
+      <MaskEditorModal />
       <ImageContextMenu />
     </>
   )
