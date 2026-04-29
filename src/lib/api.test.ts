@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS, DEFAULT_SETTINGS } from '../types'
 import { callImageApi } from './api'
+import { API_PROXY_TARGET_HEADER } from './devProxy'
 
 describe('callImageApi', () => {
   afterEach(() => {
@@ -94,7 +95,12 @@ describe('callImageApi', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api-proxy/images/generations',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          [API_PROXY_TARGET_HEADER]: 'http://api.example.com/v1',
+        }),
+      }),
     )
   })
 
@@ -121,7 +127,12 @@ describe('callImageApi', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://api.example.com/v1/images/generations',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.not.objectContaining({
+          [API_PROXY_TARGET_HEADER]: expect.any(String),
+        }),
+      }),
     )
   })
 })

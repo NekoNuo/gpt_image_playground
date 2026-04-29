@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { normalizeBaseUrl } from '../lib/api'
-import { isApiProxyAvailable, readClientDevProxyConfig } from '../lib/devProxy'
+import { isApiProxyAvailable, readClientDevProxyConfig, resolveApiProxyAvailability } from '../lib/devProxy'
 import { useStore, exportData, importData, clearAllData } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
@@ -13,11 +13,14 @@ export default function SettingsModal() {
   const setSettings = useStore((s) => s.setSettings)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const clientDevProxyConfig = readClientDevProxyConfig()
   const [draft, setDraft] = useState<AppSettings>(settings)
   const [timeoutInput, setTimeoutInput] = useState(String(settings.timeout))
   const [showApiKey, setShowApiKey] = useState(false)
-  const apiProxyAvailable = isApiProxyAvailable(readClientDevProxyConfig())
+  const [apiProxyAvailable, setApiProxyAvailable] = useState(() => isApiProxyAvailable(clientDevProxyConfig))
   const apiProxyEnabled = apiProxyAvailable && draft.apiProxy
+  const apiProxyUsesFixedTarget = Boolean(clientDevProxyConfig?.enabled)
+  const baseUrlDisabled = apiProxyEnabled && apiProxyUsesFixedTarget
 
   const getDefaultModelForMode = (apiMode: AppSettings['apiMode']) =>
     apiMode === 'responses' ? DEFAULT_RESPONSES_MODEL : DEFAULT_IMAGES_MODEL
@@ -28,6 +31,26 @@ export default function SettingsModal() {
       setTimeoutInput(String(settings.timeout))
     }
   }, [apiProxyAvailable, showSettings, settings])
+
+  useEffect(() => {
+    if (!showSettings) return
+
+    let cancelled = false
+    setApiProxyAvailable(isApiProxyAvailable(clientDevProxyConfig))
+
+    void resolveApiProxyAvailability(clientDevProxyConfig).then((available) => {
+      if (!cancelled) setApiProxyAvailable(available)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    showSettings,
+    clientDevProxyConfig?.enabled,
+    clientDevProxyConfig?.prefix,
+    clientDevProxyConfig?.target,
+  ])
 
   const commitSettings = (nextDraft: AppSettings) => {
     const apiMode = nextDraft.apiMode === 'responses' ? 'responses' : DEFAULT_SETTINGS.apiMode
@@ -140,13 +163,15 @@ export default function SettingsModal() {
                   onChange={(e) => setDraft((prev) => ({ ...prev, baseUrl: e.target.value }))}
                   onBlur={(e) => commitSettings({ ...draft, baseUrl: e.target.value })}
                   type="text"
-                  disabled={apiProxyEnabled}
+                  disabled={baseUrlDisabled}
                   placeholder={DEFAULT_SETTINGS.baseUrl}
-                  className={`w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50 ${apiProxyEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50 ${baseUrlDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
                 <div data-selectable-text className="mt-1 min-h-[22px] flex items-center text-[10px] text-gray-400 dark:text-gray-500">
-                  {apiProxyEnabled ? (
+                  {baseUrlDisabled ? (
                     <span className="text-yellow-600 dark:text-yellow-500">已开启代理，实际请求目标由部署端决定，此处设置被忽略。</span>
+                  ) : apiProxyEnabled ? (
+                    <span className="text-green-600 dark:text-green-500">已开启代理，请求会先走当前站点同源代理，再转发到这里填写的 API URL。</span>
                   ) : (
                     <span>支持通过查询参数覆盖：<code className="bg-gray-100 dark:bg-white/[0.06] px-1 py-0.5 rounded">?apiUrl=</code>，<code className="bg-gray-100 dark:bg-white/[0.06] px-1 py-0.5 rounded">codexCli=true</code></span>
                   )}
@@ -173,7 +198,9 @@ export default function SettingsModal() {
                     </button>
                   </div>
                   <div data-selectable-text className="text-[10px] text-gray-400 dark:text-gray-500">
-                    由当前部署提供同源代理，用于解决浏览器跨域限制；开启后 API URL 设置会被忽略。
+                    {apiProxyUsesFixedTarget
+                      ? '由当前部署提供固定目标同源代理，用于解决浏览器跨域限制；开启后 API URL 设置会被忽略。'
+                      : '由当前部署提供同源代理，用于解决浏览器跨域限制；开启后会优先通过当前站点转发到你填写的 API URL。'}
                   </div>
                 </div>
               )}

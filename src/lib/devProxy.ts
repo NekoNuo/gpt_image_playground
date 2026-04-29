@@ -7,6 +7,11 @@ export interface DevProxyConfig {
 }
 
 const DEFAULT_PROXY_PREFIX = '/api-proxy'
+const API_PROXY_CAPABILITIES_PATH = `${DEFAULT_PROXY_PREFIX}/__capabilities`
+
+let runtimeApiProxyAvailabilityPromise: Promise<boolean> | null = null
+
+export const API_PROXY_TARGET_HEADER = 'X-Api-Proxy-Target'
 
 export function normalizeBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim()
@@ -85,4 +90,30 @@ export function readClientDevProxyConfig(): DevProxyConfig | null {
 
 export function isApiProxyAvailable(proxyConfig: DevProxyConfig | null = readClientDevProxyConfig()): boolean {
   return import.meta.env.VITE_API_PROXY_AVAILABLE === 'true' || Boolean(proxyConfig?.enabled)
+}
+
+function canProbeRuntimeApiProxy() {
+  return typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)
+}
+
+export async function resolveApiProxyAvailability(
+  proxyConfig: DevProxyConfig | null = readClientDevProxyConfig(),
+): Promise<boolean> {
+  if (isApiProxyAvailable(proxyConfig)) return true
+  if (!canProbeRuntimeApiProxy()) return false
+
+  if (!runtimeApiProxyAvailabilityPromise) {
+    runtimeApiProxyAvailabilityPromise = fetch(API_PROXY_CAPABILITIES_PATH, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+      .then((response) => response.ok)
+      .catch(() => false)
+  }
+
+  return runtimeApiProxyAvailabilityPromise
+}
+
+export function resetApiProxyAvailabilityCache() {
+  runtimeApiProxyAvailabilityPromise = null
 }

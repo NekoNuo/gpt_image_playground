@@ -1,6 +1,6 @@
 import type { AppSettings, ImageApiResponse, ResponsesApiResponse, TaskParams } from '../types'
 import { dataUrlToBlob, imageDataUrlToPngBlob, maskDataUrlToPngBlob } from './canvasImage'
-import { buildApiUrl, isApiProxyAvailable, readClientDevProxyConfig } from './devProxy'
+import { API_PROXY_TARGET_HEADER, buildApiUrl, isApiProxyAvailable, normalizeBaseUrl, readClientDevProxyConfig } from './devProxy'
 
 const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -97,12 +97,21 @@ async function getApiErrorMessage(response: Response): Promise<string> {
   return errorMsg
 }
 
-function createRequestHeaders(settings: AppSettings): Record<string, string> {
-  return {
+function createRequestHeaders(settings: AppSettings, useApiProxy = false): Record<string, string> {
+  const headers: Record<string, string> = {
     Authorization: `Bearer ${settings.apiKey}`,
     'Cache-Control': 'no-store, no-cache, max-age=0',
     Pragma: 'no-cache',
   }
+
+  if (useApiProxy) {
+    const proxyTarget = normalizeBaseUrl(settings.baseUrl)
+    if (proxyTarget) {
+      headers[API_PROXY_TARGET_HEADER] = proxyTarget
+    }
+  }
+
+  return headers
 }
 
 function createResponsesImageTool(
@@ -284,7 +293,7 @@ async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult>
   const mime = MIME_MAP[params.output_format] || 'image/png'
   const proxyConfig = readClientDevProxyConfig()
   const useApiProxy = settings.apiProxy && isApiProxyAvailable(proxyConfig)
-  const requestHeaders = createRequestHeaders(settings)
+  const requestHeaders = createRequestHeaders(settings, useApiProxy)
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), settings.timeout * 1000)
@@ -461,7 +470,7 @@ async function callResponsesImageApiSingle(opts: CallApiOptions): Promise<CallAp
   const mime = MIME_MAP[params.output_format] || 'image/png'
   const proxyConfig = readClientDevProxyConfig()
   const useApiProxy = settings.apiProxy && isApiProxyAvailable(proxyConfig)
-  const requestHeaders = createRequestHeaders(settings)
+  const requestHeaders = createRequestHeaders(settings, useApiProxy)
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), settings.timeout * 1000)
 
