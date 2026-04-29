@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildApiUrl, resetApiProxyAvailabilityCache, resolveApiProxyAvailability } from './devProxy'
+import { buildApiUrl, resetApiProxyAvailabilityCache, resolveApiProxyAvailability, resolveApiProxyCapabilities } from './devProxy'
 
 afterEach(() => {
   resetApiProxyAvailabilityCache()
@@ -48,10 +48,16 @@ describe('buildApiUrl', () => {
     vi.stubEnv('VITE_API_PROXY_AVAILABLE', 'false')
     vi.stubGlobal('window', { location: { protocol: 'https:' } })
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      new Response(JSON.stringify({ available: true, dynamicTarget: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     )
 
-    await expect(resolveApiProxyAvailability(null)).resolves.toBe(true)
+    await expect(resolveApiProxyCapabilities(null)).resolves.toEqual({
+      available: true,
+      dynamicTarget: false,
+    })
     await expect(resolveApiProxyAvailability(null)).resolves.toBe(true)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)

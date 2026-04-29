@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { normalizeBaseUrl } from '../lib/api'
-import { isApiProxyAvailable, readClientDevProxyConfig, resolveApiProxyAvailability } from '../lib/devProxy'
+import { isApiProxyAvailable, readClientDevProxyConfig, resolveApiProxyCapabilities } from '../lib/devProxy'
 import { useStore, exportData, importData, clearAllData } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
@@ -18,8 +18,9 @@ export default function SettingsModal() {
   const [timeoutInput, setTimeoutInput] = useState(String(settings.timeout))
   const [showApiKey, setShowApiKey] = useState(false)
   const [apiProxyAvailable, setApiProxyAvailable] = useState(() => isApiProxyAvailable(clientDevProxyConfig))
+  const [apiProxyDynamicTarget, setApiProxyDynamicTarget] = useState(false)
   const apiProxyEnabled = apiProxyAvailable && draft.apiProxy
-  const apiProxyUsesFixedTarget = Boolean(clientDevProxyConfig?.enabled)
+  const apiProxyUsesFixedTarget = apiProxyAvailable && !apiProxyDynamicTarget
   const baseUrlDisabled = apiProxyEnabled && apiProxyUsesFixedTarget
 
   const getDefaultModelForMode = (apiMode: AppSettings['apiMode']) =>
@@ -37,9 +38,13 @@ export default function SettingsModal() {
 
     let cancelled = false
     setApiProxyAvailable(isApiProxyAvailable(clientDevProxyConfig))
+    setApiProxyDynamicTarget(false)
 
-    void resolveApiProxyAvailability(clientDevProxyConfig).then((available) => {
-      if (!cancelled) setApiProxyAvailable(available)
+    void resolveApiProxyCapabilities(clientDevProxyConfig).then((capabilities) => {
+      if (!cancelled) {
+        setApiProxyAvailable(capabilities.available)
+        setApiProxyDynamicTarget(capabilities.dynamicTarget)
+      }
     })
 
     return () => {

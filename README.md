@@ -104,6 +104,15 @@ https://cooksleep.github.io/gpt_image_playground
 VITE_DEFAULT_API_URL=https://api.openai.com/v1
 ```
 
+如果你的目标 API 没有放开浏览器跨域，需要再额外配置一个**固定代理目标**：
+
+```bash
+API_PROXY_TARGET=https://api.openai.com/v1
+```
+
+配置后重新部署，打开页面设置并开启 **API 代理** 即可。  
+在 Vercel 上，代理目标由 `API_PROXY_TARGET` 固定决定，因此开启代理后设置里的 `API URL` 会被忽略。
+
 部署完成后，打开 Vercel 分配的域名，在页面右上角设置中填入 API Key 即可使用。
 
 **更新说明：**
@@ -215,7 +224,7 @@ docker compose up -d
 
    这样浏览器看到的是同源请求，实际跨域请求发生在 Vite 开发服务器这一侧，从而绕开浏览器 CORS 限制。
 
-   注意：这个开发代理只在 `npm run dev` 启动的 Vite 开发服务器中生效。它不会打包进静态产物，也不会在 Vercel、GitHub Pages 或普通 Nginx 静态部署中生效。Docker 镜像内置了 Nginx 代理，可以通过环境变量 `ENABLE_API_PROXY=true` 开启（默认关闭）。
+   注意：这个开发代理只在 `npm run dev` 启动的 Vite 开发服务器中生效。它不会打包进静态产物，也不会在 GitHub Pages 或普通 Nginx 静态部署中生效。Vercel 部署需要额外配置固定代理目标 `API_PROXY_TARGET`；Docker 镜像内置了 Nginx 代理，可以通过环境变量 `ENABLE_API_PROXY=true` 开启（默认关闭）。
 
    先复制示例配置：
    ```bash
@@ -261,7 +270,7 @@ docker compose up -d
 
 - **Images API**：调用 `/v1/images/generations` 和 `/v1/images/edits`，模型需要填写 GPT Image 模型，例如 `gpt-image-2`。
 - **Responses API**：调用 `/v1/responses` 并使用 `image_generation` 工具，模型需要填写支持该工具的文本模型，例如 `gpt-5.5`。
-- **API 代理**：开启后，浏览器会请求同源的 `/api-proxy/` 路径，再由当前后端转发到真实 API，用于绕开浏览器 CORS 限制。代理目标由部署端配置决定，例如 Docker 中的 `API_URL` 或本地开发的 `dev-proxy.config.json`。
+- **API 代理**：开启后，浏览器会请求同源的 `/api-proxy/` 路径，再由当前后端转发到真实 API，用于绕开浏览器 CORS 限制。不同部署的代理目标模式不同：Vercel 固定使用 `API_PROXY_TARGET`，Docker 可转发到设置里的 `API URL`（为空时回退到 `API_URL`），本地开发则固定使用 `dev-proxy.config.json`。
 - **Codex CLI 模式**：如果你在使用源于 Codex CLI 的 API，可以在 `API URL` 右侧开启该模式。开启后应用不会向任何接口发送 `quality` 参数，界面中的质量选项也会固定为 `auto`；同时会在提示词文本开头加入简短的不改写要求，避免模型重写提示词，偏离原意。
 - Codex CLI 模式下，Images API 的图片数量会通过并发发起多个单图请求实现；Responses API 原本也通过并发请求实现多图生成。
 - 如果检测到接口返回的提示词被改写，应用会提示是否为当前 `API URL + API Key` 组合开启 Codex CLI 模式；取消后，同一组合不再重复询问。

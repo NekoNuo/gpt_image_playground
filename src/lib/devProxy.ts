@@ -6,10 +6,20 @@ export interface DevProxyConfig {
   secure: boolean
 }
 
+export interface ApiProxyCapabilities {
+  available: boolean
+  dynamicTarget: boolean
+}
+
 const DEFAULT_PROXY_PREFIX = '/api-proxy'
 const API_PROXY_CAPABILITIES_PATH = `${DEFAULT_PROXY_PREFIX}/__capabilities`
 
-let runtimeApiProxyAvailabilityPromise: Promise<boolean> | null = null
+const UNAVAILABLE_PROXY_CAPABILITIES: ApiProxyCapabilities = {
+  available: false,
+  dynamicTarget: false,
+}
+
+let runtimeApiProxyCapabilitiesPromise: Promise<ApiProxyCapabilities> | null = null
 
 export const API_PROXY_TARGET_HEADER = 'X-Api-Proxy-Target'
 
@@ -96,24 +106,66 @@ function canProbeRuntimeApiProxy() {
   return typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)
 }
 
-export async function resolveApiProxyAvailability(
-  proxyConfig: DevProxyConfig | null = readClientDevProxyConfig(),
-): Promise<boolean> {
-  if (isApiProxyAvailable(proxyConfig)) return true
-  if (!canProbeRuntimeApiProxy()) return false
+function getStaticApiProxyCapabilities(proxyConfig: DevProxyConfig | null): ApiProxyCapabilities {
+  if (proxyConfig?.enabled) {
+    return {
+      available: true,
+      dynamicTarget: false,
+    }
+  }
 
-  if (!runtimeApiProxyAvailabilityPromise) {
-    runtimeApiProxyAvailabilityPromise = fetch(API_PROXY_CAPABILITIES_PATH, {
+  if (import.meta.env.VITE_API_PROXY_AVAILABLE === 'true') {
+    return {
+      available: true,
+      dynamicTarget: false,
+    }
+  }
+
+  return UNAVAILABLE_PROXY_CAPABILITIES
+}
+
+function normalizeApiProxyCapabilities(input: unknown): ApiProxyCapabilities {
+  if (!input || typeof input !== 'object') return UNAVAILABLE_PROXY_CAPABILITIES
+
+  const record = input as Record<string, unknown>
+  return {
+    available: record.available !== false,
+    dynamicTarget: Boolean(record.dynamicTarget),
+  }
+}
+
+export async function resolveApiProxyCapabilities(
+  proxyConfig: DevProxyConfig | null = readClientDevProxyConfig(),
+): Promise<ApiProxyCapabilities> {
+  const staticCapabilities = getStaticApiProxyCapabilities(proxyConfig)
+  if (!canProbeRuntimeApiProxy()) return staticCapabilities
+
+  if (!runtimeApiProxyCapabilitiesPromise) {
+    runtimeApiProxyCapabilitiesPromise = fetch(API_PROXY_CAPABILITIES_PATH, {
       method: 'GET',
       cache: 'no-store',
     })
-      .then((response) => response.ok)
-      .catch(() => false)
+      .then(async (response) => {
+        if (!response.ok) return staticCapabilities
+
+        try {
+          return normalizeApiProxyCapabilities(await response.json())
+        } catch {
+          return staticCapabilities
+        }
+      })
+      .catch(() => staticCapabilities)
   }
 
-  return runtimeApiProxyAvailabilityPromise
+  return runtimeApiProxyCapabilitiesPromise
+}
+
+export async function resolveApiProxyAvailability(
+  proxyConfig: DevProxyConfig | null = readClientDevProxyConfig(),
+): Promise<boolean> {
+  return (await resolveApiProxyCapabilities(proxyConfig)).available
 }
 
 export function resetApiProxyAvailabilityCache() {
-  runtimeApiProxyAvailabilityPromise = null
+  runtimeApiProxyCapabilitiesPromise = null
 }
